@@ -1,155 +1,198 @@
 #include <iostream>
 #include <algorithm>
 #include <string>
+#include <chrono>
+#include <fstream>
 
+using namespace std::chrono;
 using namespace std;
 
-struct node {
+struct node
+{
     int key;
     string value;
     node *next;
 };
 
-int hash_f(string value,int table_size) {
-    int output = 0;
-    for (int i = 0; i < value.length(); i++) {
-        output += value[i];
+int hash_f(string value)
+{
+    int output = 37;
+    for (int i = 0; i < value.length(); i++)
+    {
+        output = output * 54059 ^ value[i] * 76963; // prime numbers
     }
-    output=output%table_size;
+    if (output < 0)
+    {
+        output *= -1;
+    }
     return output;
 }
 
-void insert(string n_name, node ***table, int table_size, int *places_used) {
+void insert(string n_name, node ***table, int table_size, int *places_used, int key)
+{
     node *n_node = NULL;
     n_node = new node;
     n_node->value = n_name;
-    n_node->key = 420;
+    n_node->key = key;
     n_node->next = NULL;
-    int position = hash_f(n_node->value,table_size);
-    if ((*table)[position] == NULL) {
+    int position = hash_f(n_node->value) % table_size;
+    if ((*table)[position] == NULL)
+    {
         (*table)[position] = n_node;
         (*places_used)++;
-    } else {
+    }
+    else
+    {
         node *akt_node = (*table)[position];
-        while (akt_node->next != NULL) {
-            if (akt_node->next->value == n_node->value) {
-                cout << "Taky prvok tam uz je\n";
-                return;
-            }
+        while (akt_node->next != NULL)
+        {
             akt_node = akt_node->next;
         }
         akt_node->next = n_node;
+        (*places_used)++;
     }
 }
 
-node **resize_table(int *table_size, node ***old_table, int places_used) {
+node **resize_table(int *table_size, node ***old_table, int places_used)
+{
     int old_table_size = *table_size;
     int position;
-    if (places_used >= 0.75*old_table_size){
+    int hash;
+    if (places_used >= 0.75 * old_table_size)
+    {
         *table_size = ((*table_size) << 1);
-    } else {
+    }
+    else
+    {
         *table_size = ((*table_size) >> 1);
     }
     node **new_table = new node *[*table_size];
-    for (int i = 0; i < *table_size; i++) {
+    for (int i = 0; i < *table_size; i++)
+    {
         new_table[i] = NULL;
     }
-    for (int i = 0; i < old_table_size; i++) {
-        if ((*old_table)[i] != NULL) {
-            position = hash_f((*old_table)[i]->value,*table_size);
-            new_table[position] = (*old_table)[i];
+    for (int i = 0; i < old_table_size; i++)
+    {
+        if ((*old_table)[i] != NULL)
+        {
+            node *akt_node = (*old_table)[i];
+            while (akt_node != NULL)
+            {
+                insert(akt_node->value, &new_table, *table_size, &places_used, akt_node->key);
+                akt_node = akt_node->next;
+            }
         }
     }
-    delete[] *old_table;
+    delete[] * old_table;
     return new_table;
 }
 
-void print_f(node **table, int table_size) {
-    for (int i = 0; i < table_size; i++) {
-        if (table[i] == NULL) {
-            cout << "0\n";
-        } else {
-            node *akt_node = table[i];
-            while (akt_node->next != NULL) {
-                cout << akt_node->value << ", ";
-                akt_node = akt_node->next;
-            }
-            cout << akt_node->value << endl;
+node *search_f(string n_name, node ***table, int table_size)
+{
+    int position = hash_f(n_name) % table_size;
+    node *akt_node = (*table)[position];
+    while (akt_node != NULL)
+    {
+        if (akt_node->value == n_name)
+        {
+            return akt_node;
         }
+        akt_node = akt_node->next;
     }
-}
-
-node *search_f(string n_name, node ***table, int table_size) {
-    for (int i = 0; i < table_size; i++) {
-        node *akt_node = (*table)[i];
-        if (akt_node != NULL) {
-            while (akt_node != NULL) {
-                if (akt_node->value == n_name) {
-                    return akt_node;
-                }
-                akt_node = akt_node->next;
-            }
-        }
-    }
-    cout << "Take tam neni\n";
+    cout << "Prvok sa v tabulke nenachadza\n";
     return NULL;
 }
 
-void delete_f(string n_name, node ***table,int table_size, int *places_used){
-    for (int i = 0; i < table_size; i++) {
-        node *akt_node = (*table)[i];
-        if (akt_node != NULL) {
-            if (akt_node->value == n_name){
-                node *next_node=akt_node->next;
-                if (next_node==NULL){
-                    (*places_used)--;
-                }
-                cout << "Prvok " << (*table)[i]->value << " sa vymazal\n";
-                delete (*table)[i];
-                (*table)[i]=next_node;
-                return;
-            }
-            while (akt_node->next!=NULL){
-                if (akt_node->next->value == n_name){
-                    cout << "Prvok " << akt_node->next->value << " sa vymazal\n";
-                    node *next_node = akt_node->next->next;
-                    delete akt_node->next;
-                    akt_node->next=next_node;
-                    return;
-                }
-                akt_node=akt_node->next;
-            }
-        }
+void delete_f(string n_name, node ***table, int table_size, int *places_used)
+{
+    int position = (hash_f(n_name)) % table_size;
+    if ((*table)[position]->value == n_name)
+    {
+        (*table)[position] = (*table)[position]->next;
+        (*places_used)--;
+        return;
     }
-    cout << "Take tam neni\n";
+    node *akt_node = (*table)[position];
+    node *before_node;
+    while (akt_node != NULL)
+    {
+        if (akt_node->value == n_name)
+        {
+            before_node->next = akt_node->next;
+            delete akt_node;
+            (*places_used)--;
+            return;
+        }
+        before_node = akt_node;
+        akt_node = akt_node->next;
+    }
+    cout << "Prvok sa v tabulke nenachadzal\n";
 }
-int main() {
-    string input;
-    int table_size = 3;
+
+int main()
+{
+    int table_size = 1000000;
+    int key;
+    string n_name;
     int places_used = 0;
     node **table = new node *[table_size];
-    for (int i = 0; i < table_size; i++) {
+    for (int i = 0; i < table_size; i++)
+    {
         table[i] = NULL;
     }
-    while (1) {
-        cout << "insert, search abo delete?\n";
-        cin >> input;
-        string n_name;
-        cout << "Co?\n";
-        cin >> n_name;
-        if (input == "i") {
-            insert(n_name, &table, table_size, &places_used);
-        } else if (input == "s") {
-            if (search_f(n_name, &table, table_size) != NULL) {
-                cout << search_f(n_name, &table, table_size)->value << " ma kluc "
-                     << search_f(n_name, &table, table_size)->key << endl;
-            }
-        } else if (input == "d"){
-            delete_f(n_name, &table, table_size, &places_used);
+
+    ifstream cisel_1000000("random_numbers_1000000.txt");
+    ifstream strings_1000000("random_strings_1000000.txt");
+    auto zaciatok = high_resolution_clock ::now();
+
+    for (int i = 0; i < 1000000; i++)
+    {
+        cisel_1000000 >> key;
+        strings_1000000 >> n_name;
+        insert(n_name, &table, table_size, &places_used, key);
+        if (places_used >= 0.75 * table_size)
+        {
+            table = resize_table(&table_size, &table, places_used);
         }
-        if (places_used <= 0.2 * table_size || places_used >= 0.75 * table_size) {
-            table = resize_table(&table_size, &table,places_used);
-        }
-        print_f(table, table_size);
     }
+    // auto koniec = high_resolution_clock ::now();
+    // auto dlzka = duration_cast<milliseconds>(koniec - zaciatok).count();
+    // cout << "Insert trval: " << dlzka << " milisekund." << endl;
+
+    cisel_1000000.clear();
+    cisel_1000000.seekg(0);
+    strings_1000000.clear();
+    strings_1000000.seekg(0);
+
+    // zaciatok = high_resolution_clock ::now();
+    for (int i = 0; i < 1000000; i++)
+    {
+        cisel_1000000 >> key;
+        strings_1000000 >> n_name;
+        search_f(n_name, &table, table_size);
+    }
+    // koniec = high_resolution_clock ::now();
+    // dlzka = duration_cast<seconds>(koniec - zaciatok).count();
+    // cout << "Search trval: " << dlzka << " sekund." << endl;
+
+    cisel_1000000.clear();
+    cisel_1000000.seekg(0);
+    strings_1000000.clear();
+    strings_1000000.seekg(0);
+
+    // zaciatok = high_resolution_clock ::now();
+    for (int i = 0; i < 1000000; i++)
+    {
+        cisel_1000000 >> key;
+        strings_1000000 >> n_name;
+        delete_f(n_name, &table, table_size, &places_used);
+        if (places_used <= 0.15 * table_size && table_size>2)
+        {
+            table = resize_table(&table_size, &table, places_used);
+        }
+    }
+    auto koniec = high_resolution_clock ::now();
+    auto dlzka = duration_cast<milliseconds>(koniec - zaciatok).count();
+    cout << "Delete trval: " << dlzka << " milisekund." << endl;
+    return 0;
 }
